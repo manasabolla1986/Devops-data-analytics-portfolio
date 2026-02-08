@@ -39,7 +39,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: coverage-report
-        path: target/site/jacoco/
+        path: Devops-projects/java-cicd-demo/target/site/jacoco/
     
     - name: Package application
       run: mvn -B package -DskipTests
