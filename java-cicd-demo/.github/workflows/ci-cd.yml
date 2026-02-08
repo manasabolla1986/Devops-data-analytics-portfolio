@@ -1,0 +1,157 @@
+name: Java CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: 'maven'
+    
+    - name: Build with Maven
+      run: mvn -B clean compile
+    
+    - name: Run tests
+      run: mvn -B test
+    
+    - name: Generate code coverage report
+      run: mvn -B jacoco:report
+    
+    - name: Upload coverage reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: target/site/jacoco/
+    
+    - name: Package application
+      run: mvn -B package -DskipTests
+    
+    - name: Upload JAR artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: application-jar
+        path: target/*.jar
+
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: 'maven'
+    
+    - name: Run Maven verify
+      run: mvn -B verify
+    
+    - name: Check code coverage
+      run: |
+        mvn -B jacoco:report
+        echo "Code coverage report generated"
+
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: 'maven'
+    
+    - name: Run dependency check
+      run: mvn -B dependency:tree
+    
+    - name: OWASP Dependency Check (optional - uncomment to enable)
+      run: |
+        echo "OWASP Dependency Check can be added here"
+        # mvn -B org.owasp:dependency-check-maven:check
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build, code-quality, security-scan]
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Download JAR artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: application-jar
+        path: target/
+    
+    - name: Deploy to staging
+      run: |
+        echo "Deploying to staging environment..."
+        # Add your staging deployment commands here
+        # Example: scp target/*.jar user@staging-server:/app/
+        # Example: ssh user@staging-server 'systemctl restart app'
+    
+    - name: Deployment notification
+      run: echo "Application deployed to staging successfully!"
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build, code-quality, security-scan]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: production
+      url: https://your-app-url.com
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Download JAR artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: application-jar
+        path: target/
+    
+    - name: Deploy to production
+      run: |
+        echo "Deploying to production environment..."
+        # Add your production deployment commands here
+        # Example: Deploy to cloud provider (AWS, Azure, GCP)
+        # Example: Update container registry and trigger rolling update
+    
+    - name: Deployment notification
+      run: echo "Application deployed to production successfully!"
+    
+    - name: Create release tag
+      if: success()
+      run: |
+        echo "Creating release tag..."
+        # git tag -a v$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout) -m "Release $(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)"
