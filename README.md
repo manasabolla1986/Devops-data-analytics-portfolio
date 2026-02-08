@@ -21,6 +21,7 @@ Hi 👋 I'm a DevOps Engineer with 3.5+ years of experience, currently upskillin
 ## 📁 Projects
 ### DevOps Projects
 - CI/CD pipeline for containerized application
+- CI/CD pipeline for Java application using Python
 - Kubernetes monitoring using Prometheus & Grafana
 - Terraform AWS infrastructure automation
 
