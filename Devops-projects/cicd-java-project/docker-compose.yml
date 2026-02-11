@@ -1,0 +1,94 @@
+version: "3.9"
+
+# =======================================================
+# docker-compose.yml — Local Development & Integration
+# =======================================================
+# Usage:
+#   Start all services:   docker-compose up --build
+#   App only (H2 mem):    docker-compose up app
+#   With PostgreSQL:      docker-compose --profile postgres up
+# =======================================================
+
+services:
+
+  # --------------------------------------------------
+  # Spring Boot Application
+  # --------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: cicd-demo-app:local
+    container_name: cicd-demo-app
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-default}
+      # Uncomment below and set profile to 'prod' to use PostgreSQL
+      # DB_URL: jdbc:postgresql://postgres:5432/appdb
+      # DB_USERNAME: appuser
+      # DB_PASSWORD: apppassword
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: false
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider",
+             "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # --------------------------------------------------
+  # PostgreSQL (production-like local testing)
+  # Profile: postgres
+  # --------------------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: cicd-postgres
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_DB: appdb
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: apppassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U appuser -d appdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  # --------------------------------------------------
+  # Prometheus (optional metrics scraping)
+  # Profile: monitoring
+  # --------------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cicd-prometheus
+    profiles: ["monitoring"]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./scripts/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - app-network
+
+# --------------------------------------------------
+# Volumes & Networks
+# --------------------------------------------------
+volumes:
+  postgres-data:
+
+networks:
+  app-network:
+    driver: bridge
